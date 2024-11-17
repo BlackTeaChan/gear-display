@@ -1,8 +1,12 @@
 /**
  * Gear Display
- * 挡位显示器
- *   MAX7219 8x8 Display & HS-S50P(EG49)
- *   Max7219矩阵屏 & 霍尔传感器（EG49）
+ * 挡位显示
+ *
+ * 矩阵屏
+ *   MAX7219 8x8 Display
+ * 传感器
+ *   HS-S50P(EG49)
+ *   MLX90393
  * 
  * 接线：
  * MAX7219 -> Arduino
@@ -21,11 +25,11 @@ void setup() {
   Serial.begin(9600);
   
   // 传感器引脚
-  int sensorPins[4] = { A3, A4, A5, A6 };
+  // int sensorPins[4] = { A3, A4, A5, A6 };
   // 按键引脚
   int keyDownPin = 4;
   // 初始化
-  initGearDisplay(5, sensorPins, keyDownPin);
+  initGearDisplay(5, keyDownPin);
 
   // boot animation
   for (int i = 0; i < 3; i++) {
@@ -39,5 +43,5 @@ void setup() {
 void loop() {
 
   gearDisplayLoop();
-  delay(250);
+  delay(50);
 }

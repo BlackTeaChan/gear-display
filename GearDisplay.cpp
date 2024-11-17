@@ -1,3 +1,4 @@
+#include <stdint.h>
 
 // #include <SPI.h>
 // #include <Adafruit_GFX.h>
@@ -67,17 +68,18 @@ const uint8_t LED_SETTINGS[8][8] PROGMEM = {
 
 // *************************** 传感器预设 ***************************
 // 每个传感器在各个挡位下的值（N、1、2、3、4、5、6、R）
-int MAP[4][8] PROGMEM = {
-  // ↖
+int16_t MAP[4][8] PROGMEM = {
+  // 
+  // ↖|X
   // { 0, 10, 0, 10, 0, 0, 0, 0 },
   { -1, -1, -1, -1, -1, -1, -1, -1 },
-  // ↗
+  // ↗|Y
   // { 0, 1, 0, 5, 0, 20, 1, 1 },
   { -1, -1, -1, -1, -1, -1, -1, -1 },
-  // ↙
+  // ↙|Z
   // { 0, 2, 13, 0, -13, 0, -5, -5 },
   { -1, -1, -1, -1, -1, -1, -1, -1 },
-  // ↘
+  // ↘|null
   // { 0, -7, 0, -7, 26, -5, 25, 34 }
   { -1, -1, -1, -1, -1, -1, -1, -1 },
 };
@@ -92,55 +94,81 @@ int keyDownPin = -1;
 int displayFrame = 8;
 int displayFrameTemp = -1;
 // 计算挡位位置传感器信息临时变量
-int sensorMinArray[4] = { -1, -1, -1, -1 };
-int sensorMaxArray[4] = { -1, -1, -1, -1 };
+int16_t sensorMinArray[4] = { -1, -1, -1, -1 };
+int16_t sensorMaxArray[4] = { -1, -1, -1, -1 };
 
 // Max72xxPanel myMatrix;
 Max72xxPanel* myMatrix;
 
-// EEPROM的读操作
-int readEEPROM(int address) {
-  byte highByte = EEPROM.read(address);
-  byte lowByte = EEPROM.read(address + 1);
-  return (highByte << 8) | lowByte;
-}
+// MLX90393
+Adafruit_MLX90393 mlx = Adafruit_MLX90393();
 
-// EEPROM的写操作
-void writeEEPROM(int address, int value) {
-  EEPROM.write(address, highByte(value));
-  EEPROM.write(address + 1, lowByte(value));
-  // 确保数据被写入到EEPROM中
-  EEPROM.commit();
-}
+EepromUtil eeprom(EEPROM_SIZE);
 
 void loadConfig() {
-  for (int i = 0; i < 4; i++) {
-    Serial.print("loadConfig: ");
+  // MLX90393是三组，霍尔传感器是四组
+  int size = 3;
+  for (int i = 0; i < size; i++) {
     for (int j = 0; j < 8; j++) {
       int addr = (i * 10 + j) * 2;
       // EEPROM.get(addr, MAP[i][j]);
-      MAP[i][j] = readEEPROM(addr);
+      MAP[i][j] = eeprom.readInt16(addr);
+      Serial.print("get: ");
       Serial.print(addr);
-      Serial.print(": ");
-      Serial.print(MAP[i][j]);
-      Serial.print(" ");
+      Serial.print(", ");
+      Serial.println(MAP[i][j]);
     }
     Serial.println();
   }
 }
 
 void saveConfig() {
-  for (int i = 0; i < 4; i++) {
+  // MLX90393是三组，霍尔传感器是四组
+  int size = 3;
+  for (int i = 0; i < size; i++) {
     for (int j = 0; j < 8; j++) {
       int addr = (i * 10 + j) * 2;
       // EEPROM.put(addr, MAP[i][j]);
-      writeEEPROM(addr, MAP[i][j]);
+      eeprom.writeInt16(addr, MAP[i][j]);
       Serial.print("put: ");
       Serial.print(addr);
       Serial.print(", ");
-      Serial.print(MAP[i][j]);
+      Serial.println(MAP[i][j]);
     }
   }
+  eeprom.commit();
+}
+
+// 初始化Max72xxPanel，并设置传感器引脚
+// 初始化MLX90393
+void initGearDisplay(int csPin, int inputKeyDownPin) {
+  EEPROM.begin(128);
+
+  myMatrix = new Max72xxPanel(csPin, 1, 1);
+  // 设置亮度（0~15）
+  myMatrix->setIntensity(3);
+  // 将第一个屏幕旋转 270°
+  myMatrix->setRotation(0, 3);
+  // 熄灭屏幕
+  myMatrix->fillScreen(0);
+  myMatrix->write();
+  drawMax7219(&LED_LOGO5, 1000);
+  
+  // 加载配置
+  eeprom.begin();
+  loadConfig();
+  Serial.println("load config finish");
+
+  // 保存按键引脚
+  keyDownPin = inputKeyDownPin;
+  pinMode(keyDownPin, INPUT);
+
+  // 初始化MLX90393
+  if (!mlx.begin_I2C()) {
+      Serial.println("Could not find a valid MLX90393 sensor, check wiring!");
+  }
+  Serial.println("MLX90393 Initialized successfully.");
+
 }
 
 // 初始化Max72xxPanel，并设置传感器引脚
@@ -186,25 +214,48 @@ void drawMax7219(const void* ledArray, uint delayTime) {
 
 // 判断当前挡位
 int getCurrentGear() {
-  int leftTop = (analogRead(sensorPins[0]));      // - 2030) / 10;
-  int rightTop = (analogRead(sensorPins[1]));     // - 1860) / 10;
-  int leftBottom = (analogRead(sensorPins[2]));   // - 2130) / 10;
-  int rightBottom = (analogRead(sensorPins[3]));  // - 1750) / 10;
-  Serial.print("sensors: ");
-  Serial.print(leftTop);
-  Serial.print(", ");
-  Serial.print(rightTop);
-  Serial.print(", ");
-  Serial.print(leftBottom);
-  Serial.print(", ");
-  Serial.println(rightBottom);
   // 默认空挡
   int gear = 0;
-  for (int i = 1; i < 8; i++) {
-    if (inRange(leftTop, MAP[0][i]) && inRange(rightTop, MAP[1][i])
-        && inRange(leftBottom, MAP[2][i]) && inRange(rightBottom, MAP[3][i])) {
-      gear = i;
+
+  // 通过四个传感器来获取档位
+  // int leftTop = (analogRead(sensorPins[0]));      // - 2030) / 10;
+  // int rightTop = (analogRead(sensorPins[1]));     // - 1860) / 10;
+  // int leftBottom = (analogRead(sensorPins[2]));   // - 2130) / 10;
+  // int rightBottom = (analogRead(sensorPins[3]));  // - 1750) / 10;
+  // Serial.print("sensors: ");
+  // Serial.print(leftTop);
+  // Serial.print(", ");
+  // Serial.print(rightTop);
+  // Serial.print(", ");
+  // Serial.print(leftBottom);
+  // Serial.print(", ");
+  // Serial.println(rightBottom);
+  // for (int i = 1; i < 8; i++) {
+  //   if (inRange(leftTop, MAP[0][i]) && inRange(rightTop, MAP[1][i])
+  //       && inRange(leftBottom, MAP[2][i]) && inRange(rightBottom, MAP[3][i])) {
+  //     gear = i;
+  //   }
+  // }
+
+  // 通过MLX90393获取档位
+  float x, y, z;
+  // 读取 X、Y、Z 轴的磁场强度
+  if (mlx.readData(&x, &y, &z)) {
+    Serial.print("X: ");
+    Serial.print(x);
+    Serial.print(", Y: ");
+    Serial.print(y);
+    Serial.print(", Z: ");
+    Serial.println(z);
+    for (int i = 1; i < 8; i++) {
+      if (inRange((int16_t)x, MAP[0][i]) && inRange((int16_t)y, MAP[1][i]) && inRange((int16_t)z, MAP[2][i])) {
+        gear = i;
+        Serial.println(gear);
+        break;
+      }
     }
+  } else {
+      Serial.println("Failed to read data from MLX90393.");
   }
   return gear;
 }
@@ -250,9 +301,14 @@ void gearDisplayLoop() {
   } else if (displayFrameTemp != -1) {
     if (displayFrame >= 0 && displayFrame < 8) {
       // 通过算法推断出当前挡位的值，保存，然后去下一个设置
-      for (int i = 0; i < 20; i++) {
-        for (int item = 0; item < 4; item++) {
-          int itemValue = analogRead(sensorPins[item]);
+      for (int i = 0; i < 5; i++) {
+        float temp[3] = { -1, -1, -1 };
+        mlx.readData(&temp[0], &temp[1], &temp[2]);
+        for (int item = 0; item < 3; item++) {
+          // 第一种方式：霍尔传感器
+          // int itemValue = analogRead(sensorPins[item]);
+          // 第二种方式：MLX9039
+          int itemValue = (int)temp[item];
           if (sensorMinArray[item] == -1 || itemValue < sensorMinArray[item]) {
             sensorMinArray[item] = itemValue;
           }
@@ -300,7 +356,7 @@ void gearDisplayLoop() {
     Serial.println(displayFrame);
 
     if (displayFrame == 8) {
-      Serial.print("start save config");
+      Serial.println("start save config");
       saveConfig();
       Serial.println("save config finish");
       drawMax7219(&LED_EMPTY, 0);

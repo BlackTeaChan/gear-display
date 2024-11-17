@@ -31,8 +31,12 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Max72xxPanel.h>
-#include <EEPROM.h>
+#include <Adafruit_MLX90393.h>
+// #include <EEPROM.h>
 // #include <avr/pgmspace.h>
+#include "EepromUtil.h"
+
+#define EEPROM_SIZE 128
 
 // 空屏
 extern const uint8_t LED_EMPTY[8] PROGMEM;
@@ -44,6 +48,7 @@ extern const uint8_t LED_GEAR[8][8] PROGMEM;
 // 函数声明
 void loadConfig();
 void saveConfig();
+void initGearDisplay(int csPin, int keyDownPin);
 void initGearDisplay(int csPin, int sensorPins[4], int keyDownPin);
 int getCurrentGear();
 void drawMax7219(const void* ledArray, uint delayTime);
