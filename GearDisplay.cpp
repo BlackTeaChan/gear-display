@@ -8,15 +8,15 @@
 // *************************** 矩阵屏图案 ***************************
 // LOGO
 // BTC（大）
-const uint8_t LED_LOGO1[8] PROGMEM = {0x00, 0x1C, 0xC8, 0xAB, 0xCA, 0xAA, 0xC3, 0x00};
+const uint8_t LED_LOGO1[8] PROGMEM = { 0x00, 0x1C, 0xC8, 0xAB, 0xCA, 0xAA, 0xC3, 0x00 };
 // BTC（小）
-const uint8_t LED_LOGO2[8] PROGMEM = {0x00, 0x1C, 0xC8, 0xAB, 0xCA, 0xA3, 0xC0, 0x00};
+const uint8_t LED_LOGO2[8] PROGMEM = { 0x00, 0x1C, 0xC8, 0xAB, 0xCA, 0xA3, 0xC0, 0x00 };
 // TEA
-const uint8_t LED_LOGO3[8] PROGMEM = {0x3E, 0x08, 0x08, 0xE8, 0x82, 0xE5, 0x87, 0xE5};
+const uint8_t LED_LOGO3[8] PROGMEM = { 0x3E, 0x08, 0x08, 0xE8, 0x82, 0xE5, 0x87, 0xE5 };
 // CHC
-const uint8_t LED_LOGO4[8] PROGMEM = {0xF5, 0x97, 0x85, 0x80, 0x80, 0x87, 0x94, 0xF7};
+const uint8_t LED_LOGO4[8] PROGMEM = { 0xF5, 0x97, 0x85, 0x80, 0x80, 0x87, 0x94, 0xF7 };
 // H
-const uint8_t LED_LOGO5[8] PROGMEM = {0x66, 0x66, 0x66, 0x7E, 0x7E, 0x66, 0x66, 0x66};
+const uint8_t LED_LOGO5[8] PROGMEM = { 0x66, 0x66, 0x66, 0x7E, 0x7E, 0x66, 0x66, 0x66 };
 
 // 空
 const uint8_t LED_EMPTY[8] PROGMEM = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -69,7 +69,7 @@ const uint8_t LED_SETTINGS[8][8] PROGMEM = {
 // *************************** 传感器预设 ***************************
 // 每个传感器在各个挡位下的值（N、1、2、3、4、5、6、R）
 int16_t MAP[4][8] PROGMEM = {
-  // 
+  //
   // ↖|X
   // { 0, 10, 0, 10, 0, 0, 0, 0 },
   { -1, -1, -1, -1, -1, -1, -1, -1 },
@@ -153,7 +153,7 @@ void initGearDisplay(int csPin, int inputKeyDownPin) {
   myMatrix->fillScreen(0);
   myMatrix->write();
   drawMax7219(&LED_LOGO5, 1000);
-  
+
   // 加载配置
   eeprom.begin();
   loadConfig();
@@ -165,10 +165,19 @@ void initGearDisplay(int csPin, int inputKeyDownPin) {
 
   // 初始化MLX90393
   if (!mlx.begin_I2C()) {
-      Serial.println("Could not find a valid MLX90393 sensor, check wiring!");
+    Serial.println("Could not find a valid MLX90393 sensor, check wiring!");
   }
   Serial.println("MLX90393 Initialized successfully.");
-
+  // 增益
+  mlx.setGain(MLX90393_GAIN_2X);
+  // 精度（16~19）
+  mlx.setResolution(MLX90393_X, MLX90393_RES_16);
+  mlx.setResolution(MLX90393_Y, MLX90393_RES_16);
+  mlx.setResolution(MLX90393_Z, MLX90393_RES_16);
+  // 过采样率（默认2）
+  mlx.setOversampling(MLX90393_OSR_2);
+  // 滤波器（默认0，0~5）
+  mlx.setFilter(MLX90393_FILTER_3);
 }
 
 // 初始化Max72xxPanel，并设置传感器引脚
@@ -180,7 +189,7 @@ void initGearDisplay(int csPin, int inputSensorPins[4], int inputKeyDownPin) {
   myMatrix->fillScreen(0);
   myMatrix->write();
   drawMax7219(&LED_LOGO5, 1000);
-  
+
   // 加载配置
   loadConfig();
   Serial.println("load config finish");
@@ -255,7 +264,7 @@ int getCurrentGear() {
       }
     }
   } else {
-      Serial.println("Failed to read data from MLX90393.");
+    Serial.println("Failed to read data from MLX90393.");
   }
   return gear;
 }
